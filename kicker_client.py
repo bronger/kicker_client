@@ -145,6 +145,7 @@ class LoginDialog(wx.Dialog):
         textfields_sizer = wx.FlexGridSizer(2, 2, 5, 5)
         textfields_sizer.Add(wx.StaticText(self, wx.ID_ANY, "Login:"), flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
         self.login_field = wx.TextCtrl(self)
+        self.login_field.SetFocus()
         textfields_sizer.Add(self.login_field, flag=wx.EXPAND)
         textfields_sizer.Add(wx.StaticText(self, wx.ID_ANY, "Passwort:"), flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
         self.password_field = wx.TextCtrl(self, style=wx.PASSWORD)
