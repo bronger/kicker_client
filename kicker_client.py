@@ -10,33 +10,68 @@ import chantal_remote
 class Player(object):
     def __init__(self, shortkey):
         self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
+    def __unicode__(self):
+        return self.nickname
+    def __eq__(self, other):
+        return self.username == other.username
 
 
 class Frame(wx.Frame):
 
     def __init__(self, *args, **keyw):
-        super(Frame, self).__init__(None, wx.ID_ANY, size=(600, 600), title="Kicker", *args, **keyw)
+        super(Frame, self).__init__(None, wx.ID_ANY, size=wx.DisplaySize(), title="Kicker", *args, **keyw)
+        self.ShowFullScreen(True)
         panel = wx.Panel(self, wx.ID_ANY, size=(0, 0))
         panel.Bind(wx.EVT_CHAR, self.OnKeyPress)
         panel.SetFocusIgnoringChildren()
+
+        font = wx.Font(96, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        vbox_top = wx.BoxSizer(wx.VERTICAL)
+        vbox_top.Add((10, 10), 1)
+        hbox_players = wx.BoxSizer(wx.HORIZONTAL)
+        self.team_a = wx.StaticText(self, wx.ID_ANY, "")
+        self.team_a.SetFont(font)
+        hbox_players.Add((10, 10), 1)
+        hbox_players.Add(self.team_a, flag=wx.ALIGN_TOP)
+        hbox_players.Add((10, 10), 1)
+        colon = wx.StaticText(self, wx.ID_ANY, ":")
+        colon.SetFont(font)
+        hbox_players.Add(colon, flag=wx.ALIGN_CENTER)
+        hbox_players.Add((10, 10), 1)
+        self.team_b = wx.StaticText(self, wx.ID_ANY, "")
+        self.team_b.SetFont(font)
+        hbox_players.Add(self.team_b, flag=wx.ALIGN_TOP)
+        hbox_players.Add((10, 10), 1)
+        vbox_top.Add(hbox_players, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
+        vbox_top.Add((10, 10), 1)
+        hbox_score = wx.BoxSizer(wx.HORIZONTAL)
+        self.score = wx.StaticText(self, wx.ID_ANY, "")
+        font = wx.Font(192, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        self.score.SetFont(font)
+        hbox_score.Add((10, 10), 1)
+        hbox_score.Add(self.score, flag=wx.ALIGN_CENTER)
+        hbox_score.Add((10, 10), 1)
+        vbox_top.Add(hbox_score, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
+        vbox_top.Add((10, 10), 1)
+        self.SetSizer(vbox_top)
+
         self.reset()
-        self.update()
 
     def reset(self):
         self.players = []
         self.match_id = None
         self.goals_a = self.goals_b = 0
+        self.update()
 
     def update(self):
-        vbox_main = wx.BoxSizer(wx.VERTICAL)
-        vbox_main.Add(wx.StaticText(self, wx.ID_ANY, "Super"), flag=wx.ALIGN_CENTER)
-        hbox_top = wx.BoxSizer(wx.HORIZONTAL)
-        hbox_top.Add(vbox_main, flag=wx.ALL | wx.ALIGN_CENTER)
-        self.SetSizer(hbox_top)
+        self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
+        self.team_b.SetLabel(u"\n".join(unicode(player) for player in self.players[2:]))
+        self.score.SetLabel(u"{self.goals_a}:{self.goals_a}".format(self=self))
         self.Fit()
 
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
+        print repr(character)
         if character == u"Q":
             sys.exit()
         elif character == u"G":
@@ -45,8 +80,13 @@ class Frame(wx.Frame):
             if self.players:
                 del self.players[-1]
         elif len(self.players) < 4:
-            self.players.append(Player(character))
-        elif character == u"\x10":
+            try:
+                player = Player(character)
+            except chantal_remote.ChantalError:
+                return
+            if player not in self.players or True:
+                self.players.append(player)
+        elif character == u"\r":
             if self.match_id:
                 chantal_remote.connection.open("kicker/matches/add/{0}".format(self.match_id), {
                         "player_a_1": self.players[0].username,
@@ -87,6 +127,7 @@ class Frame(wx.Frame):
                 self.goals_a = 0
             if self.goals_b < 0:
                 self.goals_b = 0
+        self.update()
 
 
 class App(wx.App):
