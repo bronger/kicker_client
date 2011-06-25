@@ -66,41 +66,17 @@ class Frame(wx.Frame):
     def update(self):
         self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
         self.team_b.SetLabel(u"\n".join(unicode(player) for player in self.players[2:]))
-        self.score.SetLabel(u"{self.goals_a}:{self.goals_a}".format(self=self))
+        self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
         self.Fit()
 
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
-        print repr(character)
         if character == u"Q":
             sys.exit()
         elif character == u"G":
             self.reset()
-        elif character == u"\x08":
-            if self.players:
-                del self.players[-1]
-        elif len(self.players) < 4:
-            try:
-                player = Player(character)
-            except chantal_remote.ChantalError:
-                return
-            if player not in self.players or True:
-                self.players.append(player)
         elif character == u"\r":
-            if self.match_id:
-                chantal_remote.connection.open("kicker/matches/add/{0}".format(self.match_id), {
-                        "player_a_1": self.players[0].username,
-                        "player_a_2": self.players[1].username,
-                        "player_b_1": self.players[2].username,
-                        "player_b_2": self.players[3].username,
-                        "goals_a": self.goals_a,
-                        "goals_b": self.goals_b,
-                        "seconds": int(time.time() - self.start_time),
-                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "finished": True
-                        })
-                self.reset()
-            else:
+            if not self.match_id:
                 self.match_id = chantal_remote.connection.open("kicker/matches/add/", {
                         "player_a_1": self.players[0].username,
                         "player_a_2": self.players[1].username,
@@ -113,6 +89,24 @@ class Frame(wx.Frame):
                         "finished": False
                         })
                 self.start_time = time.time()
+        elif character == u"!":
+            if self.match_id:
+                chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                        "player_a_1": self.players[0].username,
+                        "player_a_2": self.players[1].username,
+                        "player_b_1": self.players[2].username,
+                        "player_b_2": self.players[3].username,
+                        "goals_a": self.goals_a,
+                        "goals_b": self.goals_b,
+                        "seconds": int(time.time() - self.start_time),
+                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "finished": True
+                        })
+                self.reset()
+        elif character == u"\x1b":  # ESC
+            if self.match_id:
+                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
+            self.reset()
         elif self.match_id:
             if character == u"s":
                 self.goals_a += 1
@@ -127,18 +121,64 @@ class Frame(wx.Frame):
                 self.goals_a = 0
             if self.goals_b < 0:
                 self.goals_b = 0
+        else:
+            if character == u"\x08":
+                if self.players:
+                    del self.players[-1]
+            elif len(self.players) < 4:
+                try:
+                    player = Player(character)
+                except chantal_remote.ChantalError:
+                    return
+                if player not in self.players or True:
+                    self.players.append(player)
         self.update()
 
 
-class App(wx.App):
+class LoginDialog(wx.Dialog):
 
-    def OnInit(self):
-        chantal_remote.login("kicker", "o843zegzeisztutw7", testserver=True)
-        self.frame = Frame()
-        self.frame.Show()
-        self.SetTopWindow(self.frame)
-        return True
+    def __init__(self):
+        super(LoginDialog, self).__init__(None, wx.ID_ANY, "Login", size=(300, 100))
+
+        vbox_top = wx.BoxSizer(wx.VERTICAL)
+
+        textfields_sizer = wx.FlexGridSizer(2, 2, 5, 5)
+        textfields_sizer.Add(wx.StaticText(self, wx.ID_ANY, "Login:"), flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
+        self.login_field = wx.TextCtrl(self)
+        textfields_sizer.Add(self.login_field, flag=wx.EXPAND)
+        textfields_sizer.Add(wx.StaticText(self, wx.ID_ANY, "Passwort:"), flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
+        self.password_field = wx.TextCtrl(self, style=wx.PASSWORD)
+        textfields_sizer.Add(self.password_field, flag=wx.EXPAND)
+        textfields_sizer.AddGrowableCol(1)
+        vbox_top.Add(textfields_sizer, flag=wx.EXPAND | wx.ALL, border=5)
+
+        button_sizer = wx.StdDialogButtonSizer()
+        ok_button = wx.Button(self, wx.ID_OK, "Login", pos=(15, 15))
+        ok_button.SetDefault()
+        cancel_button = wx.Button(self, wx.ID_CANCEL)
+        button_sizer.AddButton(ok_button)
+        button_sizer.AddButton(cancel_button)
+        button_sizer.Realize()
+        vbox_top.Add(button_sizer, flag=wx.EXPAND | wx.ALL, border=5)
+
+        self.SetSizer(vbox_top)
+        self.Fit()
 
 
-app = App()
-app.MainLoop()
+app = wx.App()
+
+login_dialog = LoginDialog()
+result = login_dialog.ShowModal()
+if result == wx.ID_OK:
+    try:
+        chantal_remote.login(login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue(), testserver=True)
+        login_successful = True
+    except chantal_remote.ChantalError:
+        login_successful = False
+    finally:
+        login_dialog.Destroy()
+    if login_successful:
+        frame = Frame()
+        frame.Show()
+        app.SetTopWindow(frame)
+        app.MainLoop()
