@@ -55,13 +55,17 @@ class Frame(wx.Frame):
         vbox_top.Add((10, 10), 1)
         self.SetSizer(vbox_top)
 
+        self.match_id = None
         self.reset()
+        self.update()
 
     def reset(self):
         self.players = []
+        if self.match_id:
+            chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
         self.match_id = None
         self.goals_a = self.goals_b = 0
-        self.update()
+        self.start_time = None
 
     def update(self):
         self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
@@ -72,26 +76,13 @@ class Frame(wx.Frame):
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
         if character == u"Q":
+            self.reset()
             sys.exit()
         elif character == u"G":
             self.reset()
-        elif character == u"\r":
-            if not self.match_id:
-                self.match_id = chantal_remote.connection.open("kicker/matches/add/", {
-                        "player_a_1": self.players[0].username,
-                        "player_a_2": self.players[1].username,
-                        "player_b_1": self.players[2].username,
-                        "player_b_2": self.players[3].username,
-                        "goals_a": self.goals_a,
-                        "goals_b": self.goals_b,
-                        "seconds": 0,
-                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "finished": False
-                        })
-                self.start_time = time.time()
         elif character == u"!":
             if self.match_id:
-                chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
                         "player_a_1": self.players[0].username,
                         "player_a_2": self.players[1].username,
                         "player_b_1": self.players[2].username,
@@ -101,13 +92,22 @@ class Frame(wx.Frame):
                         "seconds": int(time.time() - self.start_time),
                         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "finished": True
-                        })
+                        })[1]
+                if delta is not None:
+                    dialog = wx.MessageDialog(
+                        self, u"Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
+                        caption=u"Änderung Kickernummer", style=wx.OK)
+                    dialog.ShowModal()
+                    dialog.Destroy()
+                self.match_id = None
                 self.reset()
         elif character == u"\x1b":  # ESC
-            if self.match_id:
-                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
             self.reset()
-        elif self.match_id:
+        elif character == u"\x08":  # Backspace
+            players = self.players[:-1]
+            self.reset()
+            self.players = players
+        elif self.start_time is not None:
             if character == u"s":
                 self.goals_a += 1
             elif character == u"y":
@@ -121,17 +121,32 @@ class Frame(wx.Frame):
                 self.goals_a = 0
             if self.goals_b < 0:
                 self.goals_b = 0
-        else:
-            if character == u"\x08":
-                if self.players:
-                    del self.players[-1]
-            elif len(self.players) < 4:
-                try:
-                    player = Player(character)
-                except chantal_remote.ChantalError:
-                    return
-                if player not in self.players or True:
-                    self.players.append(player)
+        elif len(self.players) < 4:
+            try:
+                player = Player(character)
+            except chantal_remote.ChantalError:
+                return
+            if player not in self.players:
+                self.players.append(player)
+            if len(self.players) == 4:
+                self.match_id, expected_score = chantal_remote.connection.open("kicker/matches/add/", {
+                        "player_a_1": self.players[0].username,
+                        "player_a_2": self.players[1].username,
+                        "player_b_1": self.players[2].username,
+                        "player_b_2": self.players[3].username,
+                        "goals_a": self.goals_a,
+                        "goals_b": self.goals_b,
+                        "seconds": 0,
+                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "finished": False
+                        })
+                self.update()
+                pre_message = u"Das erwartete Resultat ist {0}:{1}.  ".format(*expected_score) if expected_score else u""
+                dialog = wx.MessageDialog(self, pre_message + u"Mit „Okay“ startet das Spiel.", caption="Spiel starten",
+                                          style=wx.OK)
+                dialog.ShowModal()
+                dialog.Destroy()
+                self.start_time = time.time()
         self.update()
 
 
