@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import re, os, codecs, sys, time, StringIO, textwrap, platform, webbrowser, shutil, datetime, time
+import re, os, codecs, sys, time, StringIO, textwrap, platform, webbrowser, shutil, datetime, time, urllib2, contextlib
 import wx, wx.grid, wx.py.editor, wx.py.editwindow, wx.html, wx.lib.hyperlink
 sys.path.append("/home/bronger/src/chantal_ipv/current/remote_client")
 import chantal_remote
@@ -9,11 +9,32 @@ import chantal_remote
 
 class Player(object):
     def __init__(self, shortkey):
-        self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
+        with connection_sentry(exit_main_loop=False):
+            self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
     def __unicode__(self):
         return self.nickname
     def __eq__(self, other):
         return self.username == other.username
+
+
+@contextlib.contextmanager
+def connection_sentry(parent=None, exit_main_loop=True):
+    def show_error_dialog(error_message):
+        dialog = wx.MessageDialog(parent, error_message, caption="Fehler", style=wx.OK | wx.ICON_ERROR)
+        dialog.ShowModal()
+        dialog.Destroy()
+    try:
+        yield
+    except chantal_remote.ChantalError as error:
+        show_error_dialog(error.error_message)
+        if exit_main_loop:
+            wx.GetApp().ExitMainLoop()
+        raise
+    except urllib2.URLError as error:
+        show_error_dialog(unicode(error))
+        if exit_main_loop:
+            wx.GetApp().ExitMainLoop()
+        raise
 
 
 class Frame(wx.Frame):
@@ -62,7 +83,8 @@ class Frame(wx.Frame):
     def reset(self):
         self.players = []
         if self.match_id:
-            chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
+            with connection_sentry(self):
+                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
         self.match_id = None
         self.goals_a = self.goals_b = 0
         self.start_time = None
@@ -82,17 +104,18 @@ class Frame(wx.Frame):
             self.reset()
         elif character == u"!":
             if self.match_id:
-                delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
-                        "player_a_1": self.players[0].username,
-                        "player_a_2": self.players[1].username,
-                        "player_b_1": self.players[2].username,
-                        "player_b_2": self.players[3].username,
-                        "goals_a": self.goals_a,
-                        "goals_b": self.goals_b,
-                        "seconds": int(time.time() - self.start_time),
-                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "finished": True
-                        })[1]
+                with connection_sentry(self):
+                    delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                            "player_a_1": self.players[0].username,
+                            "player_a_2": self.players[1].username,
+                            "player_b_1": self.players[2].username,
+                            "player_b_2": self.players[3].username,
+                            "goals_a": self.goals_a,
+                            "goals_b": self.goals_b,
+                            "seconds": int(time.time() - self.start_time),
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "finished": True
+                            })[1]
                 if delta is not None:
                     dialog = wx.MessageDialog(
                         self, u"Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
@@ -126,20 +149,24 @@ class Frame(wx.Frame):
                 player = Player(character)
             except chantal_remote.ChantalError:
                 return
+            except urllib2.URLError:
+                wx.GetApp().ExitMainLoop()
+                raise
             if player not in self.players:
                 self.players.append(player)
             if len(self.players) == 4:
-                self.match_id, expected_score = chantal_remote.connection.open("kicker/matches/add/", {
-                        "player_a_1": self.players[0].username,
-                        "player_a_2": self.players[1].username,
-                        "player_b_1": self.players[2].username,
-                        "player_b_2": self.players[3].username,
-                        "goals_a": self.goals_a,
-                        "goals_b": self.goals_b,
-                        "seconds": 0,
-                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "finished": False
-                        })
+                with connection_sentry(self):
+                    self.match_id, expected_score = chantal_remote.connection.open("kicker/matches/add/", {
+                            "player_a_1": self.players[0].username,
+                            "player_a_2": self.players[1].username,
+                            "player_b_1": self.players[2].username,
+                            "player_b_2": self.players[3].username,
+                            "goals_a": self.goals_a,
+                            "goals_b": self.goals_b,
+                            "seconds": 0,
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "finished": False
+                            })
                 self.update()
                 pre_message = u"Das erwartete Resultat ist {0}:{1}.  ".format(*expected_score) if expected_score else u""
                 dialog = wx.MessageDialog(self, pre_message + u"Mit „Okay“ startet das Spiel.", caption="Spiel starten",
@@ -186,15 +213,11 @@ app = wx.App()
 login_dialog = LoginDialog()
 result = login_dialog.ShowModal()
 if result == wx.ID_OK:
-    try:
-        chantal_remote.login(login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue(), testserver=True)
-        login_successful = True
-    except chantal_remote.ChantalError:
-        login_successful = False
-    finally:
-        login_dialog.Destroy()
-    if login_successful:
-        frame = Frame()
-        frame.Show()
-        app.SetTopWindow(frame)
-        app.MainLoop()
+    login, password = login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue()
+    login_dialog.Destroy()
+    with connection_sentry():
+        chantal_remote.login(login, password, testserver=True)
+    frame = Frame()
+    frame.Show()
+    app.SetTopWindow(frame)
+    app.MainLoop()
