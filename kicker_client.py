@@ -15,6 +15,8 @@ class Player(object):
         return self.nickname
     def __eq__(self, other):
         return self.username == other.username
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 @contextlib.contextmanager
@@ -95,6 +97,20 @@ class Frame(wx.Frame):
         self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
         self.Fit()
 
+    def player_allowed(self, player):
+        assert len(self.players) <= 3
+        if len(self.players) <= 1:
+            return True
+        two_player_match = self.players[0] == self.players[1]
+        if two_player_match:
+            if len(self.players) == 2:
+                return player not in self.players
+            else:
+                return player == self.players[2]
+        else:
+            return player not in self.players
+
+
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
         if character == u"Q":
@@ -152,7 +168,7 @@ class Frame(wx.Frame):
             except urllib2.URLError:
                 wx.GetApp().ExitMainLoop()
                 raise
-            if player not in self.players:
+            if self.player_allowed(player):
                 self.players.append(player)
             if len(self.players) == 4:
                 with connection_sentry(self):
@@ -169,7 +185,7 @@ class Frame(wx.Frame):
                             })
                 self.update()
                 pre_message = u"Das erwartete Resultat ist {0}:{1}.  ".format(*expected_score) if expected_score else u""
-                dialog = wx.MessageDialog(self, pre_message + u"Mit „Okay“ startet das Spiel.", caption="Spiel starten",
+                dialog = wx.MessageDialog(self, pre_message + u"Mit „OK“ startet das Spiel.", caption="Spiel starten",
                                           style=wx.OK)
                 dialog.ShowModal()
                 dialog.Destroy()
