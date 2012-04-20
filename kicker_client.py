@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import re, os, codecs, sys, time, StringIO, textwrap, platform, webbrowser, shutil, datetime, time, urllib2, contextlib
-import wx, wx.grid, wx.py.editor, wx.py.editwindow, wx.html, wx.lib.hyperlink
-sys.path.append("/home/bronger/src/chantal_ipv/current/remote_client")
+import sys, time, datetime, urllib2, contextlib
+import wx
+#sys.path.append("/home/bronger/src/chantal_ipv/current/remote_client")
 import chantal_remote
 
 
@@ -12,7 +12,7 @@ class Player(object):
         with connection_sentry(exit_main_loop=False):
             self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
     def __unicode__(self):
-        return self.nickname
+        return self.nickname if len(self.nickname) < 10 else self.nickname[:8] + "."
     def __eq__(self, other):
         return self.username == other.username
     def __ne__(self, other):
@@ -48,7 +48,7 @@ class Frame(wx.Frame):
         panel.Bind(wx.EVT_CHAR, self.OnKeyPress)
         panel.SetFocusIgnoringChildren()
 
-        font = wx.Font(96, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        font = wx.Font(48, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
         vbox_top = wx.BoxSizer(wx.VERTICAL)
         vbox_top.Add((10, 10), 1)
         hbox_players = wx.BoxSizer(wx.HORIZONTAL)
@@ -172,7 +172,7 @@ class Frame(wx.Frame):
                 self.players.append(player)
             if len(self.players) == 4:
                 with connection_sentry(self):
-                    self.match_id, expected_score = chantal_remote.connection.open("kicker/matches/add/", {
+                    self.match_id, expected_goal_difference = chantal_remote.connection.open("kicker/matches/add/", {
                             "player_a_1": self.players[0].username,
                             "player_a_2": self.players[1].username,
                             "player_b_1": self.players[2].username,
@@ -184,7 +184,8 @@ class Frame(wx.Frame):
                             "finished": False
                             })
                 self.update()
-                pre_message = u"Das erwartete Resultat ist {0}:{1}.  ".format(*expected_score) if expected_score else u""
+                pre_message = u"Die erwartete Tordifferenz ist {0}.  ". \
+                    format(expected_goal_difference) if expected_goal_difference else u""
                 dialog = wx.MessageDialog(self, pre_message + u"Mit „OK“ startet das Spiel.", caption="Spiel starten",
                                           style=wx.OK)
                 dialog.ShowModal()
