@@ -86,7 +86,7 @@ class Frame(wx.Frame):
         self.players = []
         if self.match_id:
             with connection_sentry(self):
-                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id))
+                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
         self.match_id = None
         self.goals_a = self.goals_b = 0
         self.start_time = None
@@ -184,7 +184,7 @@ class Frame(wx.Frame):
                             "finished": False
                             })
                 self.update()
-                pre_message = u"Die erwartete Tordifferenz ist {0}.  ". \
+                pre_message = u"Die erwartete Tordifferenz ist {0:+.1f}.  ". \
                     format(expected_goal_difference) if expected_goal_difference else u""
                 dialog = wx.MessageDialog(self, pre_message + u"Mit „OK“ startet das Spiel.", caption="Spiel starten",
                                           style=wx.OK)
@@ -233,7 +233,7 @@ if result == wx.ID_OK:
     login, password = login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue()
     login_dialog.Destroy()
     with connection_sentry():
-        chantal_remote.login(login, password, testserver=True)
+        chantal_remote.login(login, password, testserver=False)
     frame = Frame()
     frame.Show()
     app.SetTopWindow(frame)
