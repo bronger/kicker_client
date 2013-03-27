@@ -131,7 +131,7 @@ class Frame(wx.Frame):
                             "seconds": int(time.time() - self.start_time),
                             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "finished": True
-                            })[1]
+                            })[2]
                 if delta is not None:
                     dialog = wx.MessageDialog(
                         self, u"Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
@@ -182,7 +182,7 @@ class Frame(wx.Frame):
                             "seconds": 0,
                             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "finished": False
-                            })
+                            })[:2]
                 self.update()
                 pre_message = u"Die erwartete Tordifferenz ist {0:+.1f}.  ". \
                     format(expected_goal_difference) if expected_goal_difference else u""
