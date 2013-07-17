@@ -28,7 +28,7 @@ def connection_sentry(parent=None, exit_main_loop=True):
     try:
         yield
     except chantal_remote.ChantalError as error:
-        show_error_dialog(error.error_message)
+        show_error_dialog(u"#{0.error_code}: {0.error_message}".format(error))
         if exit_main_loop:
             wx.GetApp().ExitMainLoop()
         raise
