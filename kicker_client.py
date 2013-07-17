@@ -76,8 +76,20 @@ class Frame(wx.Frame):
         hbox_score.Add((10, 10), 1)
         vbox_top.Add(hbox_score, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
         vbox_top.Add((10, 10), 1)
+        hbox_kicker_numbers = wx.BoxSizer(wx.HORIZONTAL)
+        self.kicker_numbers = wx.StaticText(self, wx.ID_ANY, "")
+        font = wx.Font(32, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        self.kicker_numbers.SetFont(font)
+        hbox_kicker_numbers.Add((10, 10), 1)
+        hbox_kicker_numbers.Add(self.kicker_numbers, flag=wx.ALIGN_CENTER)
+        hbox_kicker_numbers.Add((10, 10), 1)
+        vbox_top.Add(hbox_kicker_numbers, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
+        vbox_top.Add((10, 10), 1)
         self.SetSizer(vbox_top)
 
+        self.timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
+        
         self.match_id = None
         self.reset()
         self.update()
@@ -85,16 +97,20 @@ class Frame(wx.Frame):
     def reset(self):
         self.players = []
         if self.match_id:
+            self.timer.Stop()
             with connection_sentry(self):
                 chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
         self.match_id = None
         self.goals_a = self.goals_b = 0
+        self.current_win_team_1 = 0
         self.start_time = None
 
     def update(self):
         self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
         self.team_b.SetLabel(u"\n".join(unicode(player) for player in self.players[2:]))
         self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
+        self.kicker_numbers.SetLabel(u"{0:+.1f} : {1:+.1f}".format(
+            self.current_win_team_1, -self.current_win_team_1))
         self.Fit()
 
     def player_allowed(self, player):
@@ -110,6 +126,25 @@ class Frame(wx.Frame):
         else:
             return player not in self.players
 
+    def OnTimer(self, event):
+        try:
+            with connection_sentry(self, exit_main_loop=False):
+                self.current_win_team_1 = \
+                        chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                            "player_a_1": self.players[0].username,
+                            "player_a_2": self.players[1].username,
+                            "player_b_1": self.players[2].username,
+                            "player_b_2": self.players[3].username,
+                            "goals_a": self.goals_a,
+                            "goals_b": self.goals_b,
+                            "seconds": int(time.time() - self.start_time),
+                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "finished": True
+                        })[2]
+        except (chantal_remote.ChantalError, urllib2.URLError):
+            pass
+        else:
+            self.update()
 
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
@@ -120,6 +155,7 @@ class Frame(wx.Frame):
             self.reset()
         elif character == u"!":
             if self.match_id:
+                self.timer.Stop()
                 with connection_sentry(self):
                     delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
                             "player_a_1": self.players[0].username,
@@ -190,6 +226,7 @@ class Frame(wx.Frame):
                                           style=wx.OK)
                 dialog.ShowModal()
                 dialog.Destroy()
+                self.timer.Start(5000)
                 self.start_time = time.time()
         self.update()
 
