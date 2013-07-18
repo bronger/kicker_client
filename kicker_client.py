@@ -4,6 +4,7 @@
 import sys, time, datetime, urllib2, contextlib
 import wx
 #sys.path.append("/home/bronger/src/chantal_ipv/current/remote_client")
+#sys.path.append("/windows/T/Internes/Chantal/remote_client")
 import chantal_remote
 
 
@@ -139,7 +140,7 @@ class Frame(wx.Frame):
                             "goals_b": self.goals_b,
                             "seconds": int(time.time() - self.start_time),
                             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "finished": True
+                            "finished": False
                         })[2]
         except (chantal_remote.ChantalError, urllib2.URLError):
             pass
@@ -270,7 +271,7 @@ if result == wx.ID_OK:
     login, password = login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue()
     login_dialog.Destroy()
     with connection_sentry():
-        chantal_remote.login(login, password, testserver=False)
+        chantal_remote.login(login, password)
     frame = Frame()
     frame.Show()
     app.SetTopWindow(frame)
