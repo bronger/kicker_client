@@ -3,7 +3,6 @@
 
 import sys, time, datetime, urllib2, contextlib
 import wx
-#sys.path.append("/home/bronger/src/chantal_ipv/current/remote_client")
 #sys.path.append("/windows/T/Internes/Chantal/remote_client")
 import chantal_remote
 
@@ -110,8 +109,11 @@ class Frame(wx.Frame):
         self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
         self.team_b.SetLabel(u"\n".join(unicode(player) for player in self.players[2:]))
         self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
-        self.kicker_numbers.SetLabel(u"{0:+.1f} : {1:+.1f}".format(
-            self.current_win_team_1, -self.current_win_team_1))
+        if self.current_win_team_1 is None:
+            self.kicker_numbers.SetLabel(u"")
+        else:
+            self.kicker_numbers.SetLabel(u"{0:+.1f} : {1:+.1f}".format(
+                self.current_win_team_1, -self.current_win_team_1))
         self.Fit()
 
     def player_allowed(self, player):
