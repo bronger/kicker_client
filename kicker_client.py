@@ -3,14 +3,20 @@
 
 import sys, time, datetime, urllib2, contextlib
 import wx
-#sys.path.append("/windows/T/Internes/Chantal/remote_client")
+sys.path.append("/windows/T/Internes/Chantal/remote_client")
 import chantal_remote
 
 
 class Player(object):
     def __init__(self, shortkey):
-        with connection_sentry(exit_main_loop=False):
-            self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
+        while True:
+            try:
+                with connection_sentry():
+                    self.username, self.nickname = \
+                                chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
+                break
+            except ReloginNecessary:
+                pass
     def __unicode__(self):
         return self.nickname if len(self.nickname) < 10 else self.nickname[:8] + "."
     def __eq__(self, other):
@@ -19,8 +25,12 @@ class Player(object):
         return not self.__eq__(other)
 
 
+class ReloginNecessary(Exception):
+    pass
+
+
 @contextlib.contextmanager
-def connection_sentry(parent=None, exit_main_loop=True):
+def connection_sentry(parent=None):
     def show_error_dialog(error_message):
         dialog = wx.MessageDialog(parent, error_message, caption="Fehler", style=wx.OK | wx.ICON_ERROR)
         dialog.ShowModal()
@@ -29,13 +39,17 @@ def connection_sentry(parent=None, exit_main_loop=True):
         yield
     except chantal_remote.ChantalError as error:
         show_error_dialog(u"#{0.error_code}: {0.error_message}".format(error))
-        if exit_main_loop:
-            wx.GetApp().ExitMainLoop()
+        wx.GetApp().ExitMainLoop()
         raise
     except urllib2.URLError as error:
-        show_error_dialog(unicode(error))
-        if exit_main_loop:
-            wx.GetApp().ExitMainLoop()
+        if error.code == 401:
+            # One of those odd logouts
+            print "Re-login"
+            chantal_remote.login(login, password)
+            raise ReloginNecessary
+        else:
+            show_error_dialog(unicode(error))
+        wx.GetApp().ExitMainLoop()
         raise
 
 
@@ -98,8 +112,13 @@ class Frame(wx.Frame):
         self.players = []
         if self.match_id:
             self.timer.Stop()
-            with connection_sentry(self):
-                chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
+            while True:
+                try:
+                    with connection_sentry(self):
+                        chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
+                    break;
+                except ReloginNecessary:
+                    pass
         self.match_id = None
         self.goals_a = self.goals_b = 0
         self.current_win_team_1 = 0
@@ -130,24 +149,25 @@ class Frame(wx.Frame):
             return player not in self.players
 
     def OnTimer(self, event):
-        try:
-            with connection_sentry(self, exit_main_loop=False):
-                self.current_win_team_1 = \
-                        chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
-                            "player_a_1": self.players[0].username,
-                            "player_a_2": self.players[1].username,
-                            "player_b_1": self.players[2].username,
-                            "player_b_2": self.players[3].username,
-                            "goals_a": self.goals_a,
-                            "goals_b": self.goals_b,
-                            "seconds": int(time.time() - self.start_time),
-                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "finished": False
-                        })[2]
-        except (chantal_remote.ChantalError, urllib2.URLError):
-            pass
-        else:
-            self.update()
+        while True:
+            try:
+                with connection_sentry(self):
+                    self.current_win_team_1 = \
+                            chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                                "player_a_1": self.players[0].username,
+                                "player_a_2": self.players[1].username,
+                                "player_b_1": self.players[2].username,
+                                "player_b_2": self.players[3].username,
+                                "goals_a": self.goals_a,
+                                "goals_b": self.goals_b,
+                                "seconds": int(time.time() - self.start_time),
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "finished": False
+                            })[2]
+                break
+            except ReloginNecessary:
+                pass
+        self.update()
 
     def OnKeyPress(self, event):
         character = unichr(event.GetUniChar())
@@ -159,18 +179,23 @@ class Frame(wx.Frame):
         elif character == u"!":
             if self.match_id:
                 self.timer.Stop()
-                with connection_sentry(self):
-                    delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
-                            "player_a_1": self.players[0].username,
-                            "player_a_2": self.players[1].username,
-                            "player_b_1": self.players[2].username,
-                            "player_b_2": self.players[3].username,
-                            "goals_a": self.goals_a,
-                            "goals_b": self.goals_b,
-                            "seconds": int(time.time() - self.start_time),
-                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "finished": True
-                            })[2]
+                while True:
+                    try:
+                        with connection_sentry(self):
+                            delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                                    "player_a_1": self.players[0].username,
+                                    "player_a_2": self.players[1].username,
+                                    "player_b_1": self.players[2].username,
+                                    "player_b_2": self.players[3].username,
+                                    "goals_a": self.goals_a,
+                                    "goals_b": self.goals_b,
+                                    "seconds": int(time.time() - self.start_time),
+                                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "finished": True
+                                    })[2]
+                        break
+                    except ReloginNecessary:
+                        pass
                 if delta is not None:
                     dialog = wx.MessageDialog(
                         self, u"Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
@@ -210,18 +235,23 @@ class Frame(wx.Frame):
             if self.player_allowed(player):
                 self.players.append(player)
             if len(self.players) == 4:
-                with connection_sentry(self):
-                    self.match_id, expected_goal_difference = chantal_remote.connection.open("kicker/matches/add/", {
-                            "player_a_1": self.players[0].username,
-                            "player_a_2": self.players[1].username,
-                            "player_b_1": self.players[2].username,
-                            "player_b_2": self.players[3].username,
-                            "goals_a": self.goals_a,
-                            "goals_b": self.goals_b,
-                            "seconds": 0,
-                            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "finished": False
-                            })[:2]
+                while True:
+                    try:
+                        with connection_sentry(self):
+                            self.match_id, expected_goal_difference = chantal_remote.connection.open("kicker/matches/add/", {
+                                    "player_a_1": self.players[0].username,
+                                    "player_a_2": self.players[1].username,
+                                    "player_b_1": self.players[2].username,
+                                    "player_b_2": self.players[3].username,
+                                    "goals_a": self.goals_a,
+                                    "goals_b": self.goals_b,
+                                    "seconds": 0,
+                                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "finished": False
+                                    })[:2]
+                        break
+                    except ReloginNecessary:
+                        pass
                 self.update()
                 pre_message = u"Die erwartete Tordifferenz ist {0:+.1f}.  ". \
                     format(expected_goal_difference) if expected_goal_difference else u""
