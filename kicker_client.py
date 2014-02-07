@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import division
+
 import sys, time, datetime, urllib2, contextlib
 import wx
 sys.path.append("/windows/T/Internes/Chantal/remote_client")
@@ -99,6 +101,15 @@ class Frame(wx.Frame):
         hbox_kicker_numbers.Add((10, 10), 1)
         vbox_top.Add(hbox_kicker_numbers, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
         vbox_top.Add((10, 10), 1)
+        hbox_goal_value = wx.BoxSizer(wx.HORIZONTAL)
+        self.goal_value_text = wx.StaticText(self, wx.ID_ANY, "")
+        font = wx.Font(24, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        self.goal_value_text.SetFont(font)
+        hbox_goal_value.Add((10, 10), 1)
+        hbox_goal_value.Add(self.goal_value_text, flag=wx.ALIGN_CENTER)
+        hbox_goal_value.Add((10, 10), 1)
+        vbox_top.Add(hbox_goal_value, flag=wx.ALL | wx.ALIGN_CENTER | wx.EXPAND)
+        vbox_top.Add((10, 10), 1)
         self.SetSizer(vbox_top)
 
         self.timer = wx.Timer(self)
@@ -121,6 +132,8 @@ class Frame(wx.Frame):
                     pass
         self.match_id = None
         self.goals_a = self.goals_b = 0
+        self.error_estimate = 0
+        self.goal_value = 0
         self.current_win_team_1 = 0
         self.start_time = None
 
@@ -130,9 +143,11 @@ class Frame(wx.Frame):
         self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
         if self.current_win_team_1 is None:
             self.kicker_numbers.SetLabel(u"")
+            self.goal_value_text.SetLabel(u"")
         else:
-            self.kicker_numbers.SetLabel(u"{0:+.1f} : {1:+.1f}".format(
-                self.current_win_team_1, -self.current_win_team_1))
+            self.kicker_numbers.SetLabel(u"                {0:+.1f} : {1:+.1f}       ± {2:.1f}".format(
+                self.current_win_team_1, -self.current_win_team_1, self.error_estimate))
+            self.goal_value_text.SetLabel(u"Torwert: {:.1f}".format(self.goal_value))
         self.Fit()
 
     def player_allowed(self, player):
@@ -148,25 +163,33 @@ class Frame(wx.Frame):
         else:
             return player not in self.players
 
-    def OnTimer(self, event):
+    def get_current_score(self, seconds_ahead=0, goals_ahead=0):
         while True:
             try:
                 with connection_sentry(self):
-                    self.current_win_team_1 = \
+                    current_win_team_1 = \
                             chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
                                 "player_a_1": self.players[0].username,
                                 "player_a_2": self.players[1].username,
                                 "player_b_1": self.players[2].username,
                                 "player_b_2": self.players[3].username,
-                                "goals_a": self.goals_a,
+                                "goals_a": self.goals_a + goals_ahead,
                                 "goals_b": self.goals_b,
-                                "seconds": int(time.time() - self.start_time),
+                                "seconds": int(time.time() - self.start_time) + seconds_ahead,
                                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "finished": False
                             })[2]
                 break
             except ReloginNecessary:
                 pass
+        return current_win_team_1
+        
+    def OnTimer(self, event):
+        future_score = self.get_current_score(seconds_ahead=20)
+        plus_one_goal_score = self.get_current_score(goals_ahead=1)
+        self.current_win_team_1 = self.get_current_score()
+        self.error_estimate = abs(future_score - self.current_win_team_1)
+        self.goal_value = abs(plus_one_goal_score - self.current_win_team_1)
         self.update()
 
     def OnKeyPress(self, event):
