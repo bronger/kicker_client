@@ -3,7 +3,7 @@
 
 from __future__ import division
 
-import sys, time, datetime, urllib2, contextlib
+import sys, time, datetime, urllib2, urllib, contextlib
 import wx
 sys.path.append("/windows/T/Internes/Chantal/remote_client")
 import chantal_remote
@@ -14,8 +14,8 @@ class Player(object):
         while True:
             try:
                 with connection_sentry():
-                    self.username, self.nickname = \
-                                chantal_remote.connection.open("kicker/player?shortkey={0}".format(shortkey))
+                    self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(
+                        urllib.quote_plus(shortkey.encode("utf-8"))))
                 break
             except ReloginNecessary:
                 pass
