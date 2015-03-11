@@ -127,7 +127,7 @@ class Frame(wx.Frame):
                 try:
                     with connection_sentry(self):
                         chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
-                    break;
+                    break
                 except ReloginNecessary:
                     pass
         self.match_id = None
