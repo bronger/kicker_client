@@ -6,7 +6,7 @@ from __future__ import division
 import sys, time, datetime, urllib2, urllib, contextlib
 import wx
 sys.path.append("/windows/T/Internes/Chantal/remote_client")
-import chantal_remote
+from remote_client import chantal_remote
 
 
 class Player(object):
