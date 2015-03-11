@@ -41,7 +41,8 @@ def connection_sentry(parent=None):
         yield
     except chantal_remote.ChantalError as error:
         show_error_dialog(u"#{0.error_code}: {0.error_message}".format(error))
-        wx.GetApp().ExitMainLoop()
+        if (error.error_code, error.error_message) != (2, "User not found."):
+            wx.GetApp().ExitMainLoop()
         raise
     except urllib2.URLError as error:
         if error.code == 401:
