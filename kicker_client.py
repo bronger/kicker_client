@@ -14,7 +14,7 @@ class Player(object):
             try:
                 with connection_sentry():
                     self.username, self.nickname = jb_remote_iek5.connection.open("kicker/player?shortkey={0}".format(
-                        urllib.parse.quote_plus(shortkey.encode("utf-8"))))
+                        urllib.parse.quote_plus(shortkey.encode())))
                 break
             except ReloginNecessary:
                 pass
@@ -39,7 +39,7 @@ def connection_sentry(parent=None):
     try:
         yield
     except jb_remote_iek5.JuliaBaseError as error:
-        show_error_dialog(u"#{0.error_code}: {0.error_message}".format(error))
+        show_error_dialog("#{0.error_code}: {0.error_message}".format(error))
         if (error.error_code, error.error_message) != (2, "User not found."):
             wx.GetApp().ExitMainLoop()
         raise
@@ -138,16 +138,16 @@ class Frame(wx.Frame):
         self.start_time = None
 
     def update(self):
-        self.team_a.SetLabel(u"\n".join(str(player) for player in self.players[:2]))
-        self.team_b.SetLabel(u"\n".join(str(player) for player in self.players[2:]))
-        self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
+        self.team_a.SetLabel("\n".join(str(player) for player in self.players[:2]))
+        self.team_b.SetLabel("\n".join(str(player) for player in self.players[2:]))
+        self.score.SetLabel("{self.goals_a}:{self.goals_b}".format(self=self))
         if self.current_win_team_1 is None:
-            self.kicker_numbers.SetLabel(u"")
-            self.goal_value_text.SetLabel(u"")
+            self.kicker_numbers.SetLabel("")
+            self.goal_value_text.SetLabel("")
         else:
-            self.kicker_numbers.SetLabel(u"                {0:+.1f} : {1:+.1f}       ± {2:.1f}".format(
+            self.kicker_numbers.SetLabel("                {0:+.1f} : {1:+.1f}       ± {2:.1f}".format(
                 self.current_win_team_1, -self.current_win_team_1, self.error_estimate))
-            self.goal_value_text.SetLabel(u"Torwert: {:.1f}".format(self.goal_value))
+            self.goal_value_text.SetLabel("Torwert: {:.1f}".format(self.goal_value))
         self.Fit()
 
     def player_allowed(self, player):
@@ -194,12 +194,12 @@ class Frame(wx.Frame):
 
     def OnKeyPress(self, event):
         character = chr(event.GetUnicodeKey())
-        if character == u"Q":
+        if character == "Q":
             self.reset()
             sys.exit()
-        elif character == u"G":
+        elif character == "G":
             self.reset()
-        elif character == u"!":
+        elif character == "!":
             if self.match_id:
                 self.timer.Stop()
                 while True:
@@ -221,26 +221,26 @@ class Frame(wx.Frame):
                         pass
                 if delta is not None:
                     dialog = wx.MessageDialog(
-                        self, u"Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
-                        caption=u"Änderung Kickernummer", style=wx.OK)
+                        self, "Die Änderung der Kickernummern der ersten Mannschaft ist {0:+.1f}.".format(delta),
+                        caption="Änderung Kickernummer", style=wx.OK)
                     dialog.ShowModal()
                     dialog.Destroy()
                 self.match_id = None
                 self.reset()
-        elif character == u"\x1b":  # ESC
+        elif character == "\x1b":  # ESC
             self.reset()
-        elif character == u"\x08":  # Backspace
+        elif character == "\x08":  # Backspace
             players = self.players[:-1]
             self.reset()
             self.players = players
         elif self.start_time is not None:
-            if character == u"s":
+            if character == "s":
                 self.goals_a += 1
-            elif character == u"y":
+            elif character == "y":
                 self.goals_a -= 1
-            elif character == u"k":
+            elif character == "k":
                 self.goals_b += 1
-            elif character == u"m":
+            elif character == "m":
                 self.goals_b -= 1
 
             if self.goals_a < 0:
@@ -276,9 +276,9 @@ class Frame(wx.Frame):
                     except ReloginNecessary:
                         pass
                 self.update()
-                pre_message = u"Die erwartete Tordifferenz ist {0:+.1f}.  ". \
-                    format(expected_goal_difference) if expected_goal_difference else u""
-                dialog = wx.MessageDialog(self, pre_message + u"Mit „OK“ startet das Spiel.", caption="Spiel starten",
+                pre_message = "Die erwartete Tordifferenz ist {0:+.1f}.  ". \
+                    format(expected_goal_difference) if expected_goal_difference else ""
+                dialog = wx.MessageDialog(self, pre_message + "Mit „OK“ startet das Spiel.", caption="Spiel starten",
                                           style=wx.OK)
                 dialog.ShowModal()
                 dialog.Destroy()
