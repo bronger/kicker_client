@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 from __future__ import division
 
-import sys, time, datetime, urllib2, urllib, contextlib
+import sys, time, datetime, urllib.error, urllib.parse, contextlib
 import wx
 sys.path.append("/windows/T/Internes/Chantal/remote_client")
 from remote_client import chantal_remote
@@ -14,12 +14,12 @@ class Player(object):
         while True:
             try:
                 with connection_sentry():
-                    self.username, self.nickname = chantal_remote.connection.open("kicker/player?shortkey={0}".format(
-                        urllib.quote_plus(shortkey.encode("utf-8"))))
+                    self.username, self.nickname = jb_remote_iek5.connection.open("kicker/player?shortkey={0}".format(
+                        urllib.parse.quote_plus(shortkey.encode("utf-8"))))
                 break
             except ReloginNecessary:
                 pass
-    def __unicode__(self):
+    def __str__(self):
         return self.nickname if len(self.nickname) < 10 else self.nickname[:8] + "."
     def __eq__(self, other):
         return self.username == other.username
@@ -39,19 +39,19 @@ def connection_sentry(parent=None):
         dialog.Destroy()
     try:
         yield
-    except chantal_remote.ChantalError as error:
+    except jb_remote_iek5.JuliaBaseError as error:
         show_error_dialog(u"#{0.error_code}: {0.error_message}".format(error))
         if (error.error_code, error.error_message) != (2, "User not found."):
             wx.GetApp().ExitMainLoop()
         raise
-    except urllib2.URLError as error:
+    except urllib.error.URLError as error:
         if error.code == 401:
             # One of those odd logouts
-            print "Re-login"
-            chantal_remote.login(login, password)
+            print("Re-login")
+            jb_remote_iek5.login(login, password)
             raise ReloginNecessary
         else:
-            show_error_dialog(unicode(error))
+            show_error_dialog(str(error))
         wx.GetApp().ExitMainLoop()
         raise
 
@@ -127,7 +127,7 @@ class Frame(wx.Frame):
             while True:
                 try:
                     with connection_sentry(self):
-                        chantal_remote.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
+                        jb_remote_iek5.connection.open("kicker/matches/{0}/cancel/".format(self.match_id), {})
                     break
                 except ReloginNecessary:
                     pass
@@ -139,8 +139,8 @@ class Frame(wx.Frame):
         self.start_time = None
 
     def update(self):
-        self.team_a.SetLabel(u"\n".join(unicode(player) for player in self.players[:2]))
-        self.team_b.SetLabel(u"\n".join(unicode(player) for player in self.players[2:]))
+        self.team_a.SetLabel(u"\n".join(str(player) for player in self.players[:2]))
+        self.team_b.SetLabel(u"\n".join(str(player) for player in self.players[2:]))
         self.score.SetLabel(u"{self.goals_a}:{self.goals_b}".format(self=self))
         if self.current_win_team_1 is None:
             self.kicker_numbers.SetLabel(u"")
@@ -169,7 +169,7 @@ class Frame(wx.Frame):
             try:
                 with connection_sentry(self):
                     current_win_team_1 = \
-                            chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                            jb_remote_iek5.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
                                 "player_a_1": self.players[0].username,
                                 "player_a_2": self.players[1].username,
                                 "player_b_1": self.players[2].username,
@@ -194,7 +194,7 @@ class Frame(wx.Frame):
         self.update()
 
     def OnKeyPress(self, event):
-        character = unichr(event.GetUniChar())
+        character = chr(event.GetUnicodeKey())
         if character == u"Q":
             self.reset()
             sys.exit()
@@ -206,7 +206,7 @@ class Frame(wx.Frame):
                 while True:
                     try:
                         with connection_sentry(self):
-                            delta = chantal_remote.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
+                            delta = jb_remote_iek5.connection.open("kicker/matches/{0}/edit/".format(self.match_id), {
                                     "player_a_1": self.players[0].username,
                                     "player_a_2": self.players[1].username,
                                     "player_b_1": self.players[2].username,
@@ -251,9 +251,9 @@ class Frame(wx.Frame):
         elif len(self.players) < 4:
             try:
                 player = Player(character)
-            except chantal_remote.ChantalError:
+            except jb_remote_iek5.JuliaBaseError:
                 return
-            except urllib2.URLError:
+            except urllib.error.URLError:
                 wx.GetApp().ExitMainLoop()
                 raise
             if self.player_allowed(player):
@@ -262,7 +262,7 @@ class Frame(wx.Frame):
                 while True:
                     try:
                         with connection_sentry(self):
-                            self.match_id, expected_goal_difference = chantal_remote.connection.open("kicker/matches/add/", {
+                            self.match_id, expected_goal_difference = jb_remote_iek5.connection.open("kicker/matches/add/", {
                                     "player_a_1": self.players[0].username,
                                     "player_a_2": self.players[1].username,
                                     "player_b_1": self.players[2].username,
@@ -301,7 +301,7 @@ class LoginDialog(wx.Dialog):
         self.login_field.SetFocus()
         textfields_sizer.Add(self.login_field, flag=wx.EXPAND)
         textfields_sizer.Add(wx.StaticText(self, wx.ID_ANY, "Passwort:"), flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
-        self.password_field = wx.TextCtrl(self, style=wx.PASSWORD)
+        self.password_field = wx.TextCtrl(self, style=wx.TE_PASSWORD)
         textfields_sizer.Add(self.password_field, flag=wx.EXPAND)
         textfields_sizer.AddGrowableCol(1)
         vbox_top.Add(textfields_sizer, flag=wx.EXPAND | wx.ALL, border=5)
@@ -327,7 +327,7 @@ if result == wx.ID_OK:
     login, password = login_dialog.login_field.GetValue(), login_dialog.password_field.GetValue()
     login_dialog.Destroy()
     with connection_sentry():
-        chantal_remote.login(login, password)
+        jb_remote_iek5.login(login, password)
     frame = Frame()
     frame.Show()
     app.SetTopWindow(frame)
